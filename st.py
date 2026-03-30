@@ -28,7 +28,7 @@ vaccination = st.sidebar.slider("Vaccination Rate (v)", 0.0, 0.5, 0.05)
 days = st.sidebar.slider("Simulation Days", 10, 200, 100)
 
 # -------------------------------
-# SIR FUNCTION
+# SIR FUNCTION (FIXED)
 # -------------------------------
 def run_sir(beta, gamma, v):
     S = population - initial_infected
@@ -41,6 +41,18 @@ def run_sir(beta, gamma, v):
         new_S = S - (beta * S * I / population) - (v * S)
         new_I = I + (beta * S * I / population) - (gamma * I)
         new_R = R + (gamma * I) + (v * S)
+
+        # ✅ Prevent negative values
+        new_S = max(0, new_S)
+        new_I = max(0, new_I)
+        new_R = max(0, new_R)
+
+        # ✅ Maintain total population
+        total = new_S + new_I + new_R
+        if total > 0:
+            new_S *= population / total
+            new_I *= population / total
+            new_R *= population / total
 
         S, I, R = new_S, new_I, new_R
 
@@ -60,12 +72,12 @@ S, I, R = run_sir(beta, gamma, vaccination)
 # -------------------------------
 st.subheader("📊 Scenario Comparison")
 
-S_no, I_no, R_no = run_sir(beta, gamma, 0)           # No vaccination
-S_low, I_low, R_low = run_sir(beta*0.5, gamma, vaccination)  # Reduced contact
+S_no, I_no, R_no = run_sir(beta, gamma, 0)
+S_low, I_low, R_low = run_sir(beta * 0.5, gamma, vaccination)
 
 fig, ax = plt.subplots()
 
-ax.plot(I, label="Current Scenario")
+ax.plot(I, label="Current Scenario", color="red")
 ax.plot(I_no, linestyle="--", label="No Vaccination")
 ax.plot(I_low, linestyle=":", label="With Prevention")
 
@@ -74,27 +86,27 @@ ax.set_ylabel("Infected Population")
 ax.set_title("Comparison of Infection Spread")
 ax.legend()
 
-st.pyplot(fig)
+st.pyplot(fig, use_container_width=True)
 
 # -------------------------------
 # METRICS + R0
 # -------------------------------
 st.subheader("📈 Key Metrics")
 
-R0 = beta / gamma
+R0 = beta / gamma if gamma != 0 else 0
 
 peak = max(I)
-peak_day = I.index(peak)
+peak_day = int(np.argmax(I))
 
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("R₀ Value", f"{R0:.2f}")
-col2.metric("Peak Infected", int(peak))
+col2.metric("Peak Infected", round(peak))
 col3.metric("Peak Day", peak_day)
-col4.metric("Final Recovered", int(R[-1]))
+col4.metric("Final Recovered", round(R[-1]))
 
 # -------------------------------
-# FLATTEN THE CURVE INDICATOR
+# FLATTEN THE CURVE
 # -------------------------------
 st.subheader("📉 Flatten the Curve Analysis")
 
@@ -106,21 +118,21 @@ else:
     st.error("❌ High Peak - Severe Outbreak")
 
 # -------------------------------
-# FULL GRAPH (SIR)
+# FULL SIR GRAPH
 # -------------------------------
 st.subheader("📊 Full SIR Graph")
 
 fig2, ax2 = plt.subplots()
 
-ax2.plot(S, label="Susceptible")
-ax2.plot(I, label="Infected")
-ax2.plot(R, label="Recovered")
+ax2.plot(S, label="Susceptible", color="blue")
+ax2.plot(I, label="Infected", color="red")
+ax2.plot(R, label="Recovered", color="green")
 
 ax2.set_xlabel("Days")
 ax2.set_ylabel("Population")
 ax2.legend()
 
-st.pyplot(fig2)
+st.pyplot(fig2, use_container_width=True)
 
 # -------------------------------
 # THEORY SECTION
@@ -150,7 +162,7 @@ R₀ = β / γ
 """)
 
 # -------------------------------
-# INSIGHTS / INTERPRETATION
+# INSIGHTS
 # -------------------------------
 st.subheader("🧠 Insights")
 
