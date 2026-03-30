@@ -2,100 +2,161 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.title("📈 Fitness App Growth Simulation")
+# -------------------------------
+# PAGE CONFIG
+# -------------------------------
+st.set_page_config(page_title="SIR Simulation", layout="wide")
 
 # -------------------------------
-# Function
+# TITLE
 # -------------------------------
-def fitness_app_growth(initial_dau, initial_new_users, growth_rate, retention_rate,
-                       days=4, retention_boost_day=None, boost_amount=0.1):
-
-    dau = [initial_dau]
-    new_users = [initial_new_users]
-    dropouts = [0]
-
-    for t in range(1, days):
-
-        current_retention = retention_rate
-
-        if retention_boost_day is not None and t == retention_boost_day:
-            current_retention = min(1.0, retention_rate + boost_amount)
-
-        new_users_t = new_users[-1] * growth_rate
-        new_users.append(new_users_t)
-
-        retained = dau[-1] * current_retention
-        dropouts_t = dau[-1] * (1 - current_retention)
-        dau_t = retained + new_users_t
-
-        dau.append(dau_t)
-        dropouts.append(dropouts_t)
-
-    return dau, new_users, dropouts
-
+st.title("🦠 Advanced Flu Outbreak Simulator (SIR Model)")
+st.markdown("### Interactive Epidemiology Dashboard with Scenario Comparison")
 
 # -------------------------------
-# Sidebar Inputs
+# SIDEBAR INPUTS
 # -------------------------------
-st.sidebar.header("🔧 Input Parameters")
+st.sidebar.header("🔧 Adjust Parameters")
 
-initial_dau = st.sidebar.number_input("Initial DAU", value=100)
-initial_new_users = st.sidebar.number_input("Initial New Users", value=50)
-growth_rate = st.sidebar.number_input("Growth Rate", value=1.2)
-retention_rate = st.sidebar.number_input("Retention Rate", value=0.8)
-days = st.sidebar.slider("Number of Days", 2, 10, 4)
+population = st.sidebar.slider("Population (N)", 100, 5000, 1000)
+initial_infected = st.sidebar.slider("Initial Infected", 1, 100, 10)
 
-st.sidebar.subheader("Retention Boost (Scenario 2)")
-retention_boost_day = st.sidebar.number_input("Boost Day", value=2)
-boost_amount = st.sidebar.number_input("Boost Amount", value=0.1)
+beta = st.sidebar.slider("Infection Rate (β)", 0.0, 1.0, 0.3)
+gamma = st.sidebar.slider("Recovery Rate (γ)", 0.01, 1.0, 0.1)
+vaccination = st.sidebar.slider("Vaccination Rate (v)", 0.0, 0.5, 0.05)
+
+days = st.sidebar.slider("Simulation Days", 10, 200, 100)
 
 # -------------------------------
-# Run Simulation
+# SIR FUNCTION
 # -------------------------------
-if st.button("Run Simulation"):
+def run_sir(beta, gamma, v):
+    S = population - initial_infected
+    I = initial_infected
+    R = 0
 
-    # Scenario 1
-    dau1, new_users1, dropouts1 = fitness_app_growth(
-        initial_dau, initial_new_users, growth_rate, retention_rate, days
-    )
+    S_list, I_list, R_list = [S], [I], [R]
 
-    # Scenario 2
-    dau2, new_users2, dropouts2 = fitness_app_growth(
-        initial_dau, initial_new_users, growth_rate, retention_rate,
-        days, retention_boost_day, boost_amount
-    )
+    for _ in range(days):
+        new_S = S - (beta * S * I / population) - (v * S)
+        new_I = I + (beta * S * I / population) - (gamma * I)
+        new_R = R + (gamma * I) + (v * S)
 
-    # -------------------------------
-    # Display Results
-    # -------------------------------
-    st.subheader("📊 Scenario 1 Results")
-    for day in range(days):
-        st.write(f"Day {day+1}: DAU={dau1[day]:.0f}, "
-                 f"New Users={new_users1[day]:.0f}, "
-                 f"Dropouts={dropouts1[day]:.0f}")
+        S, I, R = new_S, new_I, new_R
 
-    st.subheader("📊 Scenario 2 Results")
-    for day in range(days):
-        st.write(f"Day {day+1}: DAU={dau2[day]:.0f}, "
-                 f"New Users={new_users2[day]:.0f}, "
-                 f"Dropouts={dropouts2[day]:.0f}")
+        S_list.append(S)
+        I_list.append(I)
+        R_list.append(R)
 
-    # -------------------------------
-    # Plot Graph
-    # -------------------------------
-    days_list = list(range(1, days + 1))
+    return S_list, I_list, R_list
 
-    fig, ax = plt.subplots()
-    ax.plot(days_list, dau1, label='DAU (Scenario 1)', marker='o')
-    ax.plot(days_list, new_users1, label='New Users (Scenario 1)', marker='s')
-    ax.plot(days_list, dropouts1, label='Dropouts (Scenario 1)', marker='^')
+# -------------------------------
+# MAIN SCENARIO
+# -------------------------------
+S, I, R = run_sir(beta, gamma, vaccination)
 
-    ax.plot(days_list, dau2, label='DAU (Scenario 2)', linestyle='--', marker='o')
+# -------------------------------
+# SCENARIO COMPARISON
+# -------------------------------
+st.subheader("📊 Scenario Comparison")
 
-    ax.set_title("Fitness App User Growth")
-    ax.set_xlabel("Day")
-    ax.set_ylabel("Users")
-    ax.legend()
-    ax.grid(True)
+S_no, I_no, R_no = run_sir(beta, gamma, 0)           # No vaccination
+S_low, I_low, R_low = run_sir(beta*0.5, gamma, vaccination)  # Reduced contact
 
-    st.pyplot(fig)
+fig, ax = plt.subplots()
+
+ax.plot(I, label="Current Scenario")
+ax.plot(I_no, linestyle="--", label="No Vaccination")
+ax.plot(I_low, linestyle=":", label="With Prevention")
+
+ax.set_xlabel("Days")
+ax.set_ylabel("Infected Population")
+ax.set_title("Comparison of Infection Spread")
+ax.legend()
+
+st.pyplot(fig)
+
+# -------------------------------
+# METRICS + R0
+# -------------------------------
+st.subheader("📈 Key Metrics")
+
+R0 = beta / gamma
+
+peak = max(I)
+peak_day = I.index(peak)
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("R₀ Value", f"{R0:.2f}")
+col2.metric("Peak Infected", int(peak))
+col3.metric("Peak Day", peak_day)
+col4.metric("Final Recovered", int(R[-1]))
+
+# -------------------------------
+# FLATTEN THE CURVE INDICATOR
+# -------------------------------
+st.subheader("📉 Flatten the Curve Analysis")
+
+if peak < population * 0.2:
+    st.success("✅ Curve is Flattened (Low infection peak)")
+elif peak < population * 0.5:
+    st.warning("⚠️ Moderate Spread")
+else:
+    st.error("❌ High Peak - Severe Outbreak")
+
+# -------------------------------
+# FULL GRAPH (SIR)
+# -------------------------------
+st.subheader("📊 Full SIR Graph")
+
+fig2, ax2 = plt.subplots()
+
+ax2.plot(S, label="Susceptible")
+ax2.plot(I, label="Infected")
+ax2.plot(R, label="Recovered")
+
+ax2.set_xlabel("Days")
+ax2.set_ylabel("Population")
+ax2.legend()
+
+st.pyplot(fig2)
+
+# -------------------------------
+# THEORY SECTION
+# -------------------------------
+st.subheader("📘 Mathematical Theory")
+
+st.markdown("""
+### SIR Model Equations:
+
+- dS/dt = −βSI/N − vS  
+- dI/dt = βSI/N − γI  
+- dR/dt = γI + vS  
+
+### Basic Reproduction Number (R₀):
+
+R₀ = β / γ  
+
+- If R₀ > 1 → Disease spreads  
+- If R₀ < 1 → Disease dies out  
+
+### Insights:
+
+- Higher β increases spread  
+- Higher γ improves recovery  
+- Vaccination reduces susceptible population  
+- Preventive measures reduce β (contact rate)
+""")
+
+# -------------------------------
+# INSIGHTS / INTERPRETATION
+# -------------------------------
+st.subheader("🧠 Insights")
+
+if R0 > 1:
+    st.write("The infection is likely to spread in the population.")
+else:
+    st.write("The infection will gradually die out.")
+
+st.write("Vaccination and preventive measures significantly reduce the outbreak impact.")
